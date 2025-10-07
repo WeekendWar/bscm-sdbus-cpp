@@ -5,13 +5,13 @@
 #include <thread>
 
 // BlueZ D-Bus constants
-static const char* BLUEZ_SERVICE = "org.bluez";
-static const char* ADAPTER_INTERFACE = "org.bluez.Adapter1";
-static const char* DEVICE_INTERFACE = "org.bluez.Device1";
-static const char* GATT_SERVICE_INTERFACE = "org.bluez.GattService1";
-static const char* GATT_CHARACTERISTIC_INTERFACE = "org.bluez.GattCharacteristic1";
-static const char* PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties";
-static const char* OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager";
+const std::string BLUEZ_SERVICE          = "org.bluez";
+const std::string ADAPTER_INTERFACE      = "org.bluez.Adapter1";
+const std::string DEVICE_INTERFACE       = "org.bluez.Device1";
+const std::string GATT_SERVICE_INTERFACE = "org.bluez.GattService1";
+const std::string GATT_CHAR_INTERFACE    = "org.bluez.GattCharacteristic1";
+const std::string PROPERTIES_INTERFACE   = "org.freedesktop.DBus.Properties";
+const std::string OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager";
 
 BluetoothManager::BluetoothManager() {
     m_connection = sdbus::createSystemBusConnection();
@@ -30,7 +30,8 @@ BluetoothManager::~BluetoothManager() {
 
 std::string BluetoothManager::findAdapter() {
     try {
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, "/");
+        // auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, std::string("/"));
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), sdbus::ObjectPath{"/"});
         
         std::map<sdbus::ObjectPath, std::map<std::string, std::map<std::string, sdbus::Variant>>> objects;
         proxy->callMethod("GetManagedObjects").onInterface(OBJECT_MANAGER_INTERFACE).storeResultsTo(objects);
@@ -53,7 +54,7 @@ std::string BluetoothManager::getAdapterPath() {
 
 void BluetoothManager::startDiscovery(const std::string& serviceUUID) {
     try {
-        auto adapter = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, m_adapterPath);
+        auto adapter = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), sdbus::ObjectPath(m_adapterPath));
         
         // Set discovery filter if service UUID is provided
         if (!serviceUUID.empty()) {
@@ -78,7 +79,7 @@ void BluetoothManager::startDiscovery(const std::string& serviceUUID) {
 
 void BluetoothManager::stopDiscovery() {
     try {
-        auto adapter = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, m_adapterPath);
+        auto adapter = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), sdbus::ObjectPath(m_adapterPath));
         adapter->callMethod("StopDiscovery").onInterface(ADAPTER_INTERFACE);
         std::cout << "Discovery stopped" << std::endl;
     } catch (const sdbus::Error& e) {
@@ -90,9 +91,10 @@ std::map<std::string, sdbus::Variant> BluetoothManager::getProperties(
     const std::string& objectPath, const std::string& interface) {
     
     std::map<std::string, sdbus::Variant> properties;
+    sdbus::ObjectPath path(objectPath);
     
     try {
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, objectPath);
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         proxy->callMethod("GetAll")
              .onInterface(PROPERTIES_INTERFACE)
              .withArguments(interface)
@@ -108,8 +110,9 @@ void BluetoothManager::setProperty(const std::string& objectPath,
                                    const std::string& interface,
                                    const std::string& property,
                                    const sdbus::Variant& value) {
-    try {
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, objectPath);
+sdbus::ObjectPath path(objectPath);
+                                    try {
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         proxy->callMethod("Set")
              .onInterface(PROPERTIES_INTERFACE)
              .withArguments(interface, property, value);
@@ -121,9 +124,9 @@ void BluetoothManager::setProperty(const std::string& objectPath,
 
 std::vector<DeviceInfo> BluetoothManager::getDevices(const std::string& filterServiceUUID) {
     std::vector<DeviceInfo> devices;
-    
+    sdbus::ObjectPath path("/");
     try {
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, "/");
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::map<sdbus::ObjectPath, std::map<std::string, std::map<std::string, sdbus::Variant>>> objects;
         proxy->callMethod("GetManagedObjects").onInterface(OBJECT_MANAGER_INTERFACE).storeResultsTo(objects);
@@ -186,7 +189,8 @@ std::string BluetoothManager::getDevicePath(const std::string& address) {
 bool BluetoothManager::connectDevice(const std::string& address) {
     try {
         std::string devicePath = getDevicePath(address);
-        auto device = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, devicePath);
+        sdbus::ObjectPath path(devicePath);
+        auto device = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::cout << "Connecting to device: " << address << std::endl;
         device->callMethod("Connect").onInterface(DEVICE_INTERFACE);
@@ -212,7 +216,8 @@ bool BluetoothManager::connectDevice(const std::string& address) {
 bool BluetoothManager::disconnectDevice(const std::string& address) {
     try {
         std::string devicePath = getDevicePath(address);
-        auto device = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, devicePath);
+        sdbus::ObjectPath path(devicePath);
+        auto device = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::cout << "Disconnecting device: " << address << std::endl;
         device->callMethod("Disconnect").onInterface(DEVICE_INTERFACE);
@@ -228,7 +233,8 @@ bool BluetoothManager::disconnectDevice(const std::string& address) {
 bool BluetoothManager::removeDevice(const std::string& address) {
     try {
         std::string devicePath = getDevicePath(address);
-        auto adapter = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, m_adapterPath);
+        sdbus::ObjectPath path(m_adapterPath);
+        auto adapter = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::cout << "Removing (forgetting) device: " << address << std::endl;
         adapter->callMethod("RemoveDevice")
@@ -246,9 +252,10 @@ bool BluetoothManager::removeDevice(const std::string& address) {
 bool BluetoothManager::requestMTU(const std::string& deviceAddress, uint16_t mtu) {
     try {
         std::string devicePath = getDevicePath(deviceAddress);
+        sdbus::ObjectPath path("/");
         
         // Get all GATT characteristics for the device
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, "/");
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::map<sdbus::ObjectPath, std::map<std::string, std::map<std::string, sdbus::Variant>>> objects;
         proxy->callMethod("GetManagedObjects").onInterface(OBJECT_MANAGER_INTERFACE).storeResultsTo(objects);
@@ -257,11 +264,12 @@ bool BluetoothManager::requestMTU(const std::string& deviceAddress, uint16_t mtu
         for (const auto& [path, interfaces] : objects) {
             std::string pathStr = path;
             if (pathStr.find(devicePath) == 0 && 
-                interfaces.find(GATT_CHARACTERISTIC_INTERFACE) != interfaces.end()) {
-                
+                interfaces.find(GATT_CHAR_INTERFACE) != interfaces.end()) {
+                sdbus::ObjectPath charPath(path);
+
                 // Try to acquire MTU through the characteristic
                 try {
-                    auto charProxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, path);
+                    auto charProxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), charPath);
                     
                     // Use AcquireWrite or AcquireNotify with MTU option
                     std::map<std::string, sdbus::Variant> options;
@@ -271,7 +279,7 @@ bool BluetoothManager::requestMTU(const std::string& deviceAddress, uint16_t mtu
                     sdbus::UnixFd fd;
                     uint16_t resultMtu;
                     charProxy->callMethod("AcquireNotify")
-                            .onInterface(GATT_CHARACTERISTIC_INTERFACE)
+                            .onInterface(GATT_CHAR_INTERFACE)
                             .withArguments(options)
                             .storeResultsTo(fd, resultMtu);
                     
@@ -298,7 +306,8 @@ std::vector<ServiceInfo> BluetoothManager::getServices(const std::string& device
     
     try {
         std::string devicePath = getDevicePath(deviceAddress);
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, "/");
+        sdbus::ObjectPath path("/");
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::map<sdbus::ObjectPath, std::map<std::string, std::map<std::string, sdbus::Variant>>> objects;
         proxy->callMethod("GetManagedObjects").onInterface(OBJECT_MANAGER_INTERFACE).storeResultsTo(objects);
@@ -331,7 +340,8 @@ std::vector<CharacteristicInfo> BluetoothManager::getCharacteristics(const std::
     std::vector<CharacteristicInfo> characteristics;
     
     try {
-        auto proxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, "/");
+        sdbus::ObjectPath path("/");
+        auto proxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::map<sdbus::ObjectPath, std::map<std::string, std::map<std::string, sdbus::Variant>>> objects;
         proxy->callMethod("GetManagedObjects").onInterface(OBJECT_MANAGER_INTERFACE).storeResultsTo(objects);
@@ -339,7 +349,7 @@ std::vector<CharacteristicInfo> BluetoothManager::getCharacteristics(const std::
         for (const auto& [path, interfaces] : objects) {
             std::string pathStr = path;
             if (pathStr.find(servicePath) == 0 && pathStr != servicePath) {
-                auto charIt = interfaces.find(GATT_CHARACTERISTIC_INTERFACE);
+                auto charIt = interfaces.find(GATT_CHAR_INTERFACE);
                 if (charIt != interfaces.end()) {
                     CharacteristicInfo characteristic;
                     characteristic.path = pathStr;
@@ -366,14 +376,15 @@ std::vector<CharacteristicInfo> BluetoothManager::getCharacteristics(const std::
 bool BluetoothManager::enableNotifications(const std::string& characteristicPath,
                                            std::function<void(const std::vector<uint8_t>&)> callback) {
     try {
-        auto charProxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, characteristicPath);
+        sdbus::ObjectPath path(characteristicPath);
+        auto charProxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         // Register signal handler for PropertiesChanged
         charProxy->uponSignal("PropertiesChanged").onInterface(PROPERTIES_INTERFACE)
             .call([this, characteristicPath, callback](const std::string& interface,
                                                        const std::map<std::string, sdbus::Variant>& changed,
                                                        const std::vector<std::string>& /*invalidated*/) {
-                if (interface == GATT_CHARACTERISTIC_INTERFACE && changed.count("Value")) {
+                if (interface == GATT_CHAR_INTERFACE && changed.count("Value")) {
                     auto value = changed.at("Value").get<std::vector<uint8_t>>();
                     if (callback) {
                         callback(value);
@@ -382,7 +393,7 @@ bool BluetoothManager::enableNotifications(const std::string& characteristicPath
             });
         
         // Start notifications
-        charProxy->callMethod("StartNotify").onInterface(GATT_CHARACTERISTIC_INTERFACE);
+        charProxy->callMethod("StartNotify").onInterface(GATT_CHAR_INTERFACE);
         
         m_notifyCallbacks[characteristicPath] = callback;
         std::cout << "Notifications enabled for characteristic" << std::endl;
@@ -395,8 +406,9 @@ bool BluetoothManager::enableNotifications(const std::string& characteristicPath
 
 bool BluetoothManager::disableNotifications(const std::string& characteristicPath) {
     try {
-        auto charProxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, characteristicPath);
-        charProxy->callMethod("StopNotify").onInterface(GATT_CHARACTERISTIC_INTERFACE);
+        sdbus::ObjectPath path(characteristicPath);
+        auto charProxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
+        charProxy->callMethod("StopNotify").onInterface(GATT_CHAR_INTERFACE);
         
         m_notifyCallbacks.erase(characteristicPath);
         std::cout << "Notifications disabled for characteristic" << std::endl;
@@ -410,13 +422,14 @@ bool BluetoothManager::disableNotifications(const std::string& characteristicPat
 bool BluetoothManager::writeCharacteristic(const std::string& characteristicPath,
                                           const std::vector<uint8_t>& data) {
     try {
-        auto charProxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, characteristicPath);
+        sdbus::ObjectPath path(characteristicPath);
+        auto charProxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::map<std::string, sdbus::Variant> options;
         // Default write type is "request" which waits for response
         
         charProxy->callMethod("WriteValue")
-                 .onInterface(GATT_CHARACTERISTIC_INTERFACE)
+                 .onInterface(GATT_CHAR_INTERFACE)
                  .withArguments(data, options);
         
         std::cout << "Written " << data.size() << " bytes to characteristic" << std::endl;
@@ -429,13 +442,14 @@ bool BluetoothManager::writeCharacteristic(const std::string& characteristicPath
 
 std::vector<uint8_t> BluetoothManager::readCharacteristic(const std::string& characteristicPath) {
     try {
-        auto charProxy = sdbus::createProxy(*m_connection, BLUEZ_SERVICE, characteristicPath);
+        sdbus::ObjectPath path(characteristicPath);
+        auto charProxy = sdbus::createProxy(*m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
         
         std::map<std::string, sdbus::Variant> options;
         std::vector<uint8_t> value;
         
         charProxy->callMethod("ReadValue")
-                 .onInterface(GATT_CHARACTERISTIC_INTERFACE)
+                 .onInterface(GATT_CHAR_INTERFACE)
                  .withArguments(options)
                  .storeResultsTo(value);
         
@@ -449,5 +463,5 @@ std::vector<uint8_t> BluetoothManager::readCharacteristic(const std::string& cha
 
 void BluetoothManager::processEvents(int timeoutMs) {
     (void)timeoutMs;  // Unused parameter
-    m_connection->processPendingRequest();
+    m_connection->processPendingEvent();
 }
