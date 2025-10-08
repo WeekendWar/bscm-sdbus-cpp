@@ -523,6 +523,7 @@ std::vector<CharacteristicInfo> BluetoothManager::getCharacteristics(
   return characteristics;
 }
 
+// In enableNotifications
 bool BluetoothManager::enableNotifications(
   const std::string&                               characteristicPath,
   std::function<void(const std::vector<uint8_t>&)> callback)
@@ -530,16 +531,16 @@ bool BluetoothManager::enableNotifications(
   try
   {
     sdbus::ObjectPath path(characteristicPath);
-    auto              charProxy = sdbus::createProxy(
+    // Create and store the proxy so it's not destroyed
+    auto charProxy = sdbus::createProxy(
       *m_connection, sdbus::ServiceName(BLUEZ_SERVICE), path);
 
-    // Register signal handler for PropertiesChanged
     charProxy->uponSignal("PropertiesChanged")
       .onInterface(PROPERTIES_INTERFACE)
       .call([this, characteristicPath, callback](
               const std::string&                           interface,
               const std::map<std::string, sdbus::Variant>& changed,
-              const std::vector<std::string>& /*invalidated*/) {
+              const std::vector<std::string>&              /*invalidated*/) {
         if (interface == GATT_CHAR_INTERFACE && changed.count("Value"))
         {
           auto value = changed.at("Value").get<std::vector<uint8_t>>();
@@ -550,16 +551,23 @@ bool BluetoothManager::enableNotifications(
         }
       });
 
+    // Store the proxy so it stays alive!
+    m_deviceProxies[characteristicPath] = std::move(charProxy);
+
     // Start notifications
-    charProxy->callMethod("StartNotify").onInterface(GATT_CHAR_INTERFACE);
+    m_deviceProxies[characteristicPath]
+      ->callMethod("StartNotify")
+      .onInterface(GATT_CHAR_INTERFACE);
 
     m_notifyCallbacks[characteristicPath] = callback;
-    std::cout << "Notifications enabled for characteristic" << std::endl;
+    std::cout << "Notifications enabled for characteristic: "
+              << characteristicPath << std::endl;
     return true;
   }
   catch (const sdbus::Error& e)
   {
-    std::cerr << "Error enabling notifications: " << e.what() << std::endl;
+    std::cerr << "Error enabling notifications for characteristic, "
+              << characteristicPath << ": " << e.what() << std::endl;
     return false;
   }
 }
