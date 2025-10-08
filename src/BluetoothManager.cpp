@@ -583,6 +583,7 @@ bool BluetoothManager::disableNotifications(
     charProxy->callMethod("StopNotify").onInterface(GATT_CHAR_INTERFACE);
 
     m_notifyCallbacks.erase(characteristicPath);
+    m_deviceProxies.erase(characteristicPath);
     std::cout << "Notifications disabled for characteristic" << std::endl;
     return true;
   }
