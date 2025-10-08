@@ -154,7 +154,23 @@ private:
       }
       std::cout << " [" << (dev.connected ? "Connected" : "Disconnected")
                 << ", " << (dev.paired ? "Paired" : "Not Paired") << "]";
+      std::cout << " RSSI: " << dev.rssi << " dBm";
       std::cout << std::endl;
+
+      // Print advertised services (from device's advertised UUIDs)
+      if (!dev.uuids.empty())
+      {
+        std::cout << "   Advertised services:";
+        for (const auto& uuid : dev.uuids)
+        {
+          std::cout << " " << uuid;
+        }
+        std::cout << std::endl;
+      }
+      else
+      {
+        std::cout << "   Advertised services: None" << std::endl;
+      }
     }
   }
 
@@ -185,6 +201,7 @@ private:
       }
       std::cout << " [" << (dev.connected ? "Connected" : "Disconnected")
                 << "]";
+      std::cout << " RSSI: " << dev.rssi << " dBm";
       std::cout << std::endl;
     }
   }
@@ -329,34 +346,64 @@ private:
     }
 
     std::cout << "\nAvailable services:" << std::endl;
+    std::cout << "0. All services" << std::endl;
     for (size_t i = 0; i < m_cachedServices.size(); i++)
     {
       std::cout << i + 1 << ". " << m_cachedServices[i].uuid << std::endl;
     }
 
-    int choice = std::stoi(getInput("\nSelect service number: "));
-    if (choice < 1 || choice > static_cast<int>(m_cachedServices.size()))
+    bool     all_services = false;
+    uint32_t choice       = std::stoul(getInput("\nSelect service number: "));
+    if (choice == 0)
+    {
+      all_services = true;
+    }
+    else if (choice > static_cast<uint32_t>(m_cachedServices.size()))
     {
       std::cout << "Invalid selection." << std::endl;
       return;
     }
 
-    const auto& service     = m_cachedServices[choice - 1];
-    m_currentServicePath    = service.path;
-    m_cachedCharacteristics = m_manager->getCharacteristics(service.path);
+    // Lambda to print characteristics of a service
+    auto print_characteristics =
+      [this](const std::vector<CharacteristicInfo>& characteristics) {
+        //   auto characteristics = m_manager->getCharacteristics(service.path);
+        //   std::cout << "\nService UUID: " << service.uuid << std::endl;
+        std::cout << "Found " << characteristics.size()
+                  << " characteristic(s):" << std::endl;
+        for (size_t i = 0; i < characteristics.size(); i++)
+        {
+          const auto& characteristic = characteristics[i];
+          std::cout << i + 1 << ". UUID: " << characteristic.uuid << std::endl;
+          std::cout << "   Path: " << characteristic.path << std::endl;
+          std::cout << "   Flags: ";
+          for (const auto& flag : characteristic.flags)
+          {
+            std::cout << flag << " ";
+          }
+          std::cout << std::endl;
+        }
+      };
 
-    std::cout << "\nFound " << m_cachedCharacteristics.size()
-              << " characteristic(s):" << std::endl;
-    for (size_t i = 0; i < m_cachedCharacteristics.size(); i++)
+    // if all services selected, print characteristics for all
+    // else print and cache characteristics for selected service
+    if (all_services)
     {
-      const auto& characteristic = m_cachedCharacteristics[i];
-      std::cout << i + 1 << ". UUID: " << characteristic.uuid << std::endl;
-      std::cout << "   Flags: ";
-      for (const auto& flag : characteristic.flags)
+      for (const auto& service : m_cachedServices)
       {
-        std::cout << flag << " ";
+        auto characteristics = m_manager->getCharacteristics(service.path);
+        std::cout << "\nService UUID: " << service.uuid << std::endl;
+        print_characteristics(characteristics);
       }
-      std::cout << std::endl;
+      return;
+    }
+    else
+    {
+      // Specific service selected
+      const auto& service     = m_cachedServices[choice - 1];
+      m_currentServicePath    = service.path;
+      m_cachedCharacteristics = m_manager->getCharacteristics(service.path);
+      print_characteristics(m_cachedCharacteristics);
     }
   }
 
@@ -494,7 +541,7 @@ private:
     if (m_manager->enableNotifications(characteristic.path, callback))
     {
       m_notifyActive = true;
-      std::cout << "Notifications enabled. Listening for notifications..."
+      std::cout << "Notifications enabled. Listening for notifications from: " << characteristic.uuid
                 << std::endl;
       std::cout << "Press Enter to return to menu..." << std::endl;
 

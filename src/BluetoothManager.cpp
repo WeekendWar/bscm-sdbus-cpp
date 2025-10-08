@@ -14,6 +14,7 @@ const std::string PROPERTIES_INTERFACE   = "org.freedesktop.DBus.Properties";
 const std::string OBJECT_MANAGER_INTERFACE =
   "org.freedesktop.DBus.ObjectManager";
 
+const bool        USE_DEFAULT_ADAPTER  = true;
 const std::string DEFAULT_ADAPTER_PATH = "/org/bluez/hci1";
 
 BluetoothManager::BluetoothManager()
@@ -50,6 +51,17 @@ std::string BluetoothManager::findAdapter()
       .onInterface(OBJECT_MANAGER_INTERFACE)
       .storeResultsTo(objects);
 
+    // if default path available, then try to use it
+    for (const auto& [path, interfaces] : objects)
+    {
+      if (USE_DEFAULT_ADAPTER &&
+          (path == sdbus::ObjectPath{DEFAULT_ADAPTER_PATH}))
+      {
+        return path;
+      }
+    }
+
+    // otherwise return the first adapter found
     for (const auto& [path, interfaces] : objects)
     {
       if (interfaces.find(ADAPTER_INTERFACE) != interfaces.end())
@@ -217,6 +229,10 @@ std::vector<DeviceInfo> BluetoothManager::getDevices(
         if (props.count("UUIDs"))
         {
           info.uuids = props.at("UUIDs").get<std::vector<std::string>>();
+        }
+        if (props.count("RSSI"))
+        {
+          info.rssi = props.at("RSSI").get<int16_t>();
         }
 
         // Filter by service UUID if provided

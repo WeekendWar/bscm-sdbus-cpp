@@ -16,6 +16,7 @@ struct DeviceInfo {
     bool connected;
     bool trusted;
     std::vector<std::string> uuids;
+    int16_t rssi = 0;
 };
 
 struct CharacteristicInfo {
