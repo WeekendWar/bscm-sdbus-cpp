@@ -46,9 +46,14 @@ public:
   std::vector<DeviceInfo> getDevices(const std::string& filterServiceUUID = "");
 
   // Device operations
-  bool connectDevice(const std::string& address);
-  bool disconnectDevice(const std::string& address);
-  bool removeDevice(const std::string& address);
+  std::string getDevicePath(const std::string& address);
+  bool        connectDevice(const std::string& address);
+  bool        disconnectDevice(const std::string& address);
+  bool        removeDevice(const std::string& address);
+  void        cleanupDevice(const std::string& devicePath);
+  void        registerDeviceDisconnectHandler(
+           const std::string&                      devicePath,
+           std::function<void(const std::string&)> onDisconnect);
 
   // MTU operations
   bool requestMTU(const std::string& deviceAddress, uint16_t mtu);
@@ -78,9 +83,10 @@ private:
   std::map<std::string, std::unique_ptr<sdbus::IProxy>> m_deviceProxies;
   std::map<std::string, std::function<void(const std::vector<uint8_t>&)>>
     m_notifyCallbacks;
+  std::map<std::string, std::unique_ptr<sdbus::IProxy>>
+    m_deviceDisconnectProxies;
 
-  std::string findAdapter();
-  std::string getDevicePath(const std::string& address);
+  std::string                           findAdapter();
   std::map<std::string, sdbus::Variant> getProperties(
     const std::string& objectPath,
     const std::string& interface);

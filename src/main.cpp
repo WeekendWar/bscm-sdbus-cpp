@@ -6,6 +6,7 @@
 #include <thread>
 #include "BluetoothManager.h"
 
+constexpr uint64_t DBUS_NOTIFY_POLL_INTERVAL_MS = 20;
 class BluetoothCLI
 {
 public:
@@ -238,6 +239,23 @@ private:
     {
       m_connectedDevice = device.address;
 
+      // Give time for services to be read from BLE device
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      m_cachedServices = m_manager->getServices(m_connectedDevice);
+
+      // Register disconnect handler
+      std::string devicePath = m_manager->getDevicePath(m_connectedDevice);
+      m_manager->registerDeviceDisconnectHandler(
+        devicePath, [this](const std::string& devPath) {
+          std::cout << "Device connection lost: " << devPath << std::endl;
+          m_manager->cleanupDevice(devPath);
+          m_connectedDevice.clear();
+          m_cachedServices.clear();
+          m_cachedCharacteristics.clear();
+          std::cout << "Cleaned up after disconnect.\n";
+        });
+
+      // TODO - this doesn't seem to be working
       // Request MTU of 250 bytes
       std::cout << "Requesting MTU of 250 bytes..." << std::endl;
       m_manager->requestMTU(device.address, 250);
@@ -541,8 +559,8 @@ private:
     if (m_manager->enableNotifications(characteristic.path, callback))
     {
       m_notifyActive = true;
-      std::cout << "Notifications enabled. Listening for notifications from: " << characteristic.uuid
-                << std::endl;
+      std::cout << "Notifications enabled. Listening for notifications from: "
+                << characteristic.uuid << std::endl;
       std::cout << "Press Enter to return to menu..." << std::endl;
 
       // Start a thread to process events
@@ -550,7 +568,8 @@ private:
         while (m_notifyActive)
         {
           m_manager->processEvents(100);
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          std::this_thread::sleep_for(
+            std::chrono::milliseconds(DBUS_NOTIFY_POLL_INTERVAL_MS));
         }
       });
 

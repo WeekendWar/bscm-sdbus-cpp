@@ -348,6 +348,54 @@ bool BluetoothManager::removeDevice(const std::string& address)
   }
 }
 
+void BluetoothManager::registerDeviceDisconnectHandler(
+  const std::string&                      devicePath,
+  std::function<void(const std::string&)> onDisconnect)
+{
+  auto proxy = sdbus::createProxy(*m_connection,
+                                  sdbus::ServiceName(BLUEZ_SERVICE),
+                                  sdbus::ObjectPath(devicePath));
+  proxy->uponSignal("PropertiesChanged")
+    .onInterface("org.freedesktop.DBus.Properties")
+    .call([this, devicePath, onDisconnect](
+            const std::string&                           interface,
+            const std::map<std::string, sdbus::Variant>& changed,
+            const std::vector<std::string>&) {
+      if (interface == "org.bluez.Device1" && changed.count("Connected"))
+      {
+        bool connected = changed.at("Connected").get<bool>();
+        if (!connected)
+        {
+          std::cout << "[BluetoothManager] Device disconnected: " << devicePath
+                    << std::endl;
+          onDisconnect(devicePath);
+          // Remove this proxy
+          m_deviceDisconnectProxies.erase(devicePath);
+        }
+      }
+    });
+  m_deviceDisconnectProxies[devicePath] = std::move(proxy);
+}
+
+void BluetoothManager::cleanupDevice(const std::string& devicePath)
+{
+  // Remove notification proxies and callbacks for all characteristics belonging
+  // to device
+  std::vector<std::string> to_cleanup;
+  for (const auto& [charPath, _] : m_deviceProxies)
+  {
+    if (charPath.find(devicePath) == 0)
+    {
+      to_cleanup.push_back(charPath);
+    }
+  }
+  for (const auto& charPath : to_cleanup)
+  {
+    m_deviceProxies.erase(charPath);
+    m_notifyCallbacks.erase(charPath);
+  }
+}
+
 bool BluetoothManager::requestMTU(const std::string& deviceAddress,
                                   uint16_t           mtu)
 {
@@ -540,7 +588,7 @@ bool BluetoothManager::enableNotifications(
       .call([this, characteristicPath, callback](
               const std::string&                           interface,
               const std::map<std::string, sdbus::Variant>& changed,
-              const std::vector<std::string>&              /*invalidated*/) {
+              const std::vector<std::string>& /*invalidated*/) {
         if (interface == GATT_CHAR_INTERFACE && changed.count("Value"))
         {
           auto value = changed.at("Value").get<std::vector<uint8_t>>();
