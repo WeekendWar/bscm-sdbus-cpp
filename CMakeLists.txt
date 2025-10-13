@@ -12,7 +12,8 @@ pkg_check_modules(SDBUS_CPP REQUIRED IMPORTED_TARGET sdbus-c++)
 # Source files
 set(SOURCES
     src/main.cpp
-    src/BluetoothManager.cpp
+    src/bluetooth_cli.cpp
+    src/bluetooth_manager.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

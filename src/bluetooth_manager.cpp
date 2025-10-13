@@ -1,9 +1,12 @@
-#include "BluetoothManager.h"
+#include "boot_module/bluetooth_manager.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <thread>
 
+namespace boot_module
+{
 // BlueZ D-Bus constants
 const std::string BLUEZ_SERVICE          = "org.bluez";
 const std::string ADAPTER_INTERFACE      = "org.bluez.Adapter1";
@@ -490,6 +493,7 @@ std::vector<ServiceInfo> BluetoothManager::getServices(
 
     for (const auto& [path, interfaces] : objects)
     {
+      // if this characteristic belongs to the device
       std::string pathStr = path;
       if (pathStr.find(devicePath) == 0)
       {
@@ -703,3 +707,4 @@ void BluetoothManager::processEvents(int timeoutMs)
   (void)timeoutMs;  // Unused parameter
   m_connection->processPendingEvent();
 }
+} // namespace boot_module

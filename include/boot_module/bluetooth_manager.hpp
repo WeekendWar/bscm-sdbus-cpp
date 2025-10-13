@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+namespace boot_module
+{
 struct DeviceInfo
 {
   std::string              address;
@@ -98,3 +100,4 @@ private:
 };
 
 #endif  // BLUETOOTH_MANAGER_H
+} // namespace boot_module
