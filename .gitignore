@@ -54,3 +54,6 @@ Makefile
 *.swp
 *.swo
 *~
+
+# folders
+doxygen_output/
